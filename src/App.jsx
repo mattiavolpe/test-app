@@ -15,10 +15,7 @@ export default function App(){
 
   // Load markers.json
   useEffect(()=>{
-    fetch('/markers.json')
-      .then(r => r.json())
-      .then(setMarkers)
-      .catch(()=> setMarkers([]))
+    fetch('/markers.json').then(r=>r.json()).then(setMarkers).catch(()=>setMarkers([]))
   }, [])
 
   // Scene
@@ -102,7 +99,7 @@ export default function App(){
     }
     rebuildMarkers()
 
-    // Controls (drag horizontal inverted; WASD fixed as requested)
+    // Controls (drag horizontal inverted; WASD final fix)
     const keys = {}
     window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true)
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false)
@@ -118,11 +115,10 @@ export default function App(){
       const speed = (keys['shift']? 18: 9) * dt
       const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
       const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
-      // FIX: normal mapping for WASD
       if(keys['w']) camera.position.addScaledVector(f, speed)
       if(keys['s']) camera.position.addScaledVector(f, -speed)
-      if(keys['a']) camera.position.addScaledVector(r, -speed)
-      if(keys['d']) camera.position.addScaledVector(r, speed)
+      if(keys['a']) camera.position.addScaledVector(r, speed)   // A = left
+      if(keys['d']) camera.position.addScaledVector(r, -speed)  // D = right
       const target = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(Math.sin(yaw), Math.tan(-pitch), Math.cos(yaw)))
       camera.lookAt(target)
     }
@@ -202,17 +198,50 @@ export default function App(){
   }, [showTest])
 
   function OverlayContent({ marker }){
-    // priority: hlsUrl -> ytId -> iframeProxy (pageUrl) -> iframeUrl
-    const hasHls = marker.hlsUrl && marker.hlsUrl.length > 0
-    const hasYt = marker.ytId && marker.ytId.length > 0
-    const hasPage = marker.pageUrl && marker.pageUrl.length > 0
-    const hasIframe = marker.iframeUrl && marker.iframeUrl.length > 0
+    const [resolvedHls, setResolvedHls] = useState(null)
+    const [state, setState] = useState('init') // init | loading | hls | youtube | iframeProxy | iframe | fail
 
-    if(hasHls){
-      const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(marker.hlsUrl)}` : marker.hlsUrl
+    useEffect(()=>{
+      let cancelled = false
+      async function resolve(){
+        // priority: direct hlsUrl -> ytId -> try pageUrl/iframeUrl via backend /gethls -> fallback /iframe or iframeUrl
+        if(marker.hlsUrl){
+          setResolvedHls(marker.hlsUrl); setState('hls'); return
+        }
+        if(marker.ytId){
+          setState('youtube'); return
+        }
+        // Try to extract HLS from any page URL
+        const page = marker.pageUrl || marker.iframeUrl
+        if(page && PROXY_BASE){
+          try {
+            setState('loading')
+            const resp = await fetch(`${PROXY_BASE}/gethls?url=${encodeURIComponent(page)}`)
+            if(!cancelled && resp.ok){
+              const data = await resp.json()
+              if(data && data.url){
+                setResolvedHls(data.url); setState('hls'); return
+              }
+            }
+          } catch {}
+        }
+        // If we got here, try iframe proxy first (if pageUrl provided), else iframeUrl
+        if(marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); return }
+        if(marker.iframeUrl){ setState('iframe'); return }
+        setState('fail')
+      }
+      resolve()
+      return ()=>{ cancelled = True }
+    }, [marker])
+
+    if(state === 'loading'){
+      return <div className="video-wrap" style={{color:'#fff'}}>Caricamento stream…</div>
+    }
+    if(state === 'hls' && resolvedHls){
+      const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(resolvedHls)}` : resolvedHls
       return <div className="video-wrap"><VideoPlayer src={src} autoPlay /></div>
     }
-    if(hasYt){
+    if(state === 'youtube' && marker.ytId){
       return (
         <iframe
           title={marker.id}
@@ -223,28 +252,17 @@ export default function App(){
         />
       )
     }
-    if(hasPage && PROXY_BASE){
+    if(state === 'iframeProxy' && marker.pageUrl && PROXY_BASE){
       const proxied = `${PROXY_BASE}/iframe?url=${encodeURIComponent(marker.pageUrl)}`
-      return (
-        <iframe
-          title={marker.id}
-          src={proxied}
-          style={{width:'100%',height:'100%',border:0}}
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-        />
-      )
+      return <iframe title={marker.id} src={proxied} style={{width:'100%',height:'100%',border:0}} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
     }
-    if(hasIframe){
-      return (
-        <iframe
-          title={marker.id}
-          src={marker.iframeUrl}
-          style={{width:'100%',height:'100%',border:0}}
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-        />
-      )
+    if(state === 'iframe' && marker.iframeUrl){
+      return <iframe title={marker.id} src={marker.iframeUrl} style={{width:'100%',height:'100%',border:0}} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
     }
-    return <div className="video-wrap" style={{color:'#fff'}}>Nessuna sorgente disponibile per questo marker.</div>
+    if(state === 'fail'){
+      return <div className="video-wrap" style={{color:'#fff'}}>Nessuna sorgente disponibile per questo marker.</div>
+    }
+    return null
   }
 
   function VideoPlayer({ src, autoPlay }){
@@ -269,7 +287,7 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.1</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.2</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
           <div style={{marginTop:6}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
@@ -280,7 +298,7 @@ export default function App(){
 
       {hovered && <div className="marker-tooltip" style={{left:hovered.x, top:hovered.y}}>{hovered.name}</div>}
 
-      <div className="legend">Marker caricati da <code>public/markers.json</code> — priorità: HLS → YouTube → iframe proxato → iframe diretto</div>
+      <div className="legend">Marker da <code>public/markers.json</code> — priorità: HLS → YouTube → estrazione HLS via backend → iframe proxato → iframe diretto</div>
 
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 

@@ -1,8 +1,10 @@
-# Tokyo Live 3D — Modern v3.1 (WASD fixed + iframe proxy)
-- WASD corretto: W avanti, S indietro, A sinistra, D destra
+# Tokyo Live 3D — Modern v3.2
+- WASD definitivo (A/D corretti)
 - Marker da /public/markers.json
-- Priorità sorgenti: hlsUrl → ytId → pageUrl (iframe proxato) → iframeUrl diretto
+- Click marker: HLS diretto (se presente) → YouTube → **estrazione HLS via backend** da qualunque pagina → iframe proxato → iframe
 - Test HLS via proxy incluso (autoplay muted)
-- Pronto per Vercel (Build: npm run build, Output: dist, Env: VITE_PROXY_BASE)
 
-Nota: l'uso di /iframe per aggirare X-Frame-Options/CSP funziona finché i siti non applicano verifiche ulteriori; usa fonti autorizzate quando possibile.
+Vercel:
+- Build: npm run build
+- Output: dist
+- Env: VITE_PROXY_BASE = https://<subdomain>.up.railway.app
