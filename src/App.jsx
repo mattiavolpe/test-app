@@ -81,7 +81,7 @@ export default function App(){
     }
     scene.add(blockGroup)
 
-    const markerGeom = new THREE.SphereGeometry(2.0, 28, 22)
+    const markerGeom = new THREE.SphereGeometry(2.2, 28, 22)
     const markerMat = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x360000, metalness: 0.25, roughness: 0.3 })
     const beaconMat  = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x3a0000, metalness: 0.1, roughness: 0.5, transparent:true, opacity:0.9 })
     const markerMeshes = []
@@ -91,10 +91,10 @@ export default function App(){
       markerMeshes.length = 0
       markers.forEach(m=>{
         const mesh = new THREE.Mesh(markerGeom, markerMat)
-        mesh.position.set(m.pos[0], 2.4, m.pos[2])
+        mesh.position.set(m.pos[0], 2.6, m.pos[2])
         mesh.userData = { id:m.id, name:m.name }
-        const height = 8
-        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, height, 16), beaconMat)
+        const height = 8.5
+        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, height, 18), beaconMat)
         beacon.position.set(m.pos[0], height/2, m.pos[2])
         scene.add(beacon); scene.add(mesh)
         markerMeshes.push({mesh, beacon})
@@ -204,27 +204,21 @@ export default function App(){
 
     useEffect(()=>{
       let cancelled = false
+      const L = (...a)=>{ if(!cancelled && (debug)) setLog(x=>[...x, a.join(' ')]) }
       async function resolve(){
-        
-
-        
         const page = marker.pageUrl || marker.iframeUrl
-        // Fast-path: if marker already provides direct YouTube URL/ID, use it.
+
+        // Fast-path: direct values from marker
         if(marker.youtubeFullUrl){
-          setResolvedYtUrl(marker.youtubeFullUrl);
-          setState('youtubeUrl');
-          L('marker youtubeFullUrl diretto');
-          return;
+          setResolvedYtUrl(marker.youtubeFullUrl); setState('youtubeUrl'); L('marker youtubeFullUrl diretto'); return
         }
         if(marker.ytId){
-          setResolvedYt(marker.ytId);
-          setState('youtube');
-          L('marker ytId diretto');
-          return;
+          setResolvedYt(marker.ytId); setState('youtube'); L('marker ytId diretto'); return
+        }
+        if(marker.hlsUrl){
+          setResolvedHls(marker.hlsUrl); setState('hls'); L('marker hlsUrl diretto'); return
         }
 
-        if(marker.hlsUrl){ setResolvedHls(marker.hlsUrl); setState('hls'); L('hlsUrl diretto'); return }
-        if(marker.ytId){ setResolvedYt(marker.ytId); setState('youtube'); L('ytId diretto'); return }
         if(page && PROXY_BASE){
           try{
             setState('loading'); L('getyoutube →', page)
@@ -236,7 +230,7 @@ export default function App(){
               if(d && d.fullUrl){ setResolvedYtUrl(d.fullUrl); setState('youtubeUrl'); return }
               if(d && d.id){ setResolvedYt(d.id); setState('youtube'); return }
             }
-          }catch(e){ L('getyoutube error') }
+          }catch(e){ L('getyoutube error', String(e)) }
           try{
             L('gethls →', page)
             const r = await fetch(`${PROXY_BASE}/gethls?url=${encodeURIComponent(page)}`)
@@ -249,21 +243,22 @@ export default function App(){
                 const txt = await r.text(); setReason(txt || `gethls ${r.status}`)
               }
             }
-          }catch(e){ if(!cancelled) { setReason('gethls error'); L('gethls error') } }
+          }catch(e){ if(!cancelled) { setReason('gethls error'); L('gethls error', String(e)) } }
         }
+
         if(!cancelled && marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); L('fallback iframeProxy'); return }
         if(!cancelled && marker.iframeUrl){ setState('iframe'); L('fallback iframe'); return }
         if(!cancelled){ setState('fail'); L('fail') }
       }
       resolve()
       return ()=>{ cancelled = true }
-    }, [marker])
+    }, [marker, debug])
 
-    const debugBox = debug && (
+    const debugBox = debug && log.length ? (
       <div style={{position:'absolute',right:10,top:10,background:'rgba(0,0,0,0.6)',color:'#e8ecf3',padding:8,borderRadius:8,fontSize:12,maxWidth:'50%',whiteSpace:'pre-wrap'}}>
         {log.join('\n')}
       </div>
-    )
+    ) : null
 
     if(state === 'loading'){
       return <div className="video-wrap" style={{color:'#fff'}}>
@@ -276,7 +271,6 @@ export default function App(){
       return <div className="video-wrap">{debugBox}<VideoPlayer src={src} autoPlay /></div>
     }
     if(state === 'youtubeUrl' && resolvedYtUrl){
-      // Use the exact embed URL provided by backend (e.g., Skyline's iframe src)
       return (
         <div className="video-wrap">
           {debugBox}
@@ -297,7 +291,7 @@ export default function App(){
           {debugBox}
           <iframe
             title={marker.id}
-            src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1`}
+            src={`https://www.youtube.com/embed/${id}?autoplay=1&mute=1`}
             style={{width:'100%',height:'100%',border:0}}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
@@ -346,7 +340,7 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.8</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v4.0</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
           <div style={{marginTop:6,display:'flex',gap:8,alignItems:'center'}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
@@ -362,7 +356,7 @@ export default function App(){
       {toast && <div className="toast">{toast}</div>}
       {hovered && <div className="marker-tooltip" style={{left:hovered.x, top:hovered.y}}>{hovered.name}</div>}
 
-      <div className="legend">Priorità: HLS → YouTube (full URL se disponibile) → HLS/YouTube da pagina → iframe proxato → iframe</div>
+      <div className="legend">Priorità: `youtubeFullUrl` → `ytId` → HLS → YouTube/HLS da pagina → iframe proxato → iframe</div>
 
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 

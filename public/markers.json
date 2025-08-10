@@ -50,7 +50,8 @@
       0,
       -2
     ],
-    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/tokyo-skytree.html"
+    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/tokyo-skytree.html",
+    "youtubeFullUrl": ""
   },
   {
     "id": "asakusa",
@@ -60,7 +61,8 @@
       0,
       -6
     ],
-    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/asakusa-hozomon-gate-sensoji.html"
+    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/asakusa-hozomon-gate-sensoji.html",
+    "youtubeFullUrl": ""
   },
   {
     "id": "ginza",
@@ -70,6 +72,7 @@
       0,
       10
     ],
-    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-panorama.html"
+    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-panorama.html",
+    "youtubeFullUrl": ""
   }
 ]
