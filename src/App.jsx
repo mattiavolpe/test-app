@@ -231,7 +231,7 @@ export default function App(){
         setState('fail')
       }
       resolve()
-      return ()=>{ cancelled = True }
+      return ()=>{ cancelled = true }
     }, [marker])
 
     if(state === 'loading'){
