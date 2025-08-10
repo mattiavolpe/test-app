@@ -197,6 +197,7 @@ export default function App(){
   function OverlayContent({ marker }){
     const [resolvedHls, setResolvedHls] = useState(null)
     const [resolvedYt, setResolvedYt] = useState(null)
+    const [resolvedYtUrl, setResolvedYtUrl] = useState(null) // NEW: full embed URL
     const [state, setState] = useState('init')
     const [reason, setReason] = useState('')
     const [log, setLog] = useState([])
@@ -216,6 +217,7 @@ export default function App(){
             if(!cancelled && rYT.ok){
               const d = await rYT.json()
               L('getyoutube payload', JSON.stringify(d))
+              if(d && d.fullUrl){ setResolvedYtUrl(d.fullUrl); setState('youtubeUrl'); return }
               if(d && d.id){ setResolvedYt(d.id); setState('youtube'); return }
             }
           }catch(e){ L('getyoutube error') }
@@ -241,11 +243,11 @@ export default function App(){
       return ()=>{ cancelled = true }
     }, [marker])
 
-    const debugBox = debug && log.length ? (
+    const debugBox = debug && (
       <div style={{position:'absolute',right:10,top:10,background:'rgba(0,0,0,0.6)',color:'#e8ecf3',padding:8,borderRadius:8,fontSize:12,maxWidth:'50%',whiteSpace:'pre-wrap'}}>
         {log.join('\n')}
       </div>
-    ) : null
+    )
 
     if(state === 'loading'){
       return <div className="video-wrap" style={{color:'#fff'}}>
@@ -256,6 +258,21 @@ export default function App(){
     if(state === 'hls' && resolvedHls){
       const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(resolvedHls)}` : resolvedHls
       return <div className="video-wrap">{debugBox}<VideoPlayer src={src} autoPlay /></div>
+    }
+    if(state === 'youtubeUrl' && resolvedYtUrl){
+      // Use the exact embed URL provided by backend (e.g., Skyline's iframe src)
+      return (
+        <div className="video-wrap">
+          {debugBox}
+          <iframe
+            title={marker.id}
+            src={resolvedYtUrl}
+            style={{width:'100%',height:'100%',border:0}}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
+      )
     }
     if(state === 'youtube' && (resolvedYt || marker.ytId)){
       const id = resolvedYt || marker.ytId
@@ -313,11 +330,10 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.7</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.8</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
           <div style={{marginTop:6,display:'flex',gap:8,alignItems:'center'}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
-            <button className="btn" onClick={()=>setToast(t => t ? null : 'Suggerimento: attiva il debug per vedere il percorso scelto (YouTube/HLS/iframe).')}>Suggerimento</button>
             <label style={{display:'inline-flex',gap:6,alignItems:'center',background:'#0c0f14',border:'1px solid #2a2f3a',padding:'6px 10px',borderRadius:8,color:'#e8ecf3'}}>
               <input type="checkbox" onChange={e=>setDebug(e.target.checked)} />
               Debug
@@ -330,7 +346,7 @@ export default function App(){
       {toast && <div className="toast">{toast}</div>}
       {hovered && <div className="marker-tooltip" style={{left:hovered.x, top:hovered.y}}>{hovered.name}</div>}
 
-      <div className="legend">Priorità: HLS → YouTube → HLS da pagina → iframe proxato → iframe (usa il toggle Debug per vedere i passaggi)</div>
+      <div className="legend">Priorità: HLS → YouTube (full URL se disponibile) → HLS/YouTube da pagina → iframe proxato → iframe</div>
 
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 
