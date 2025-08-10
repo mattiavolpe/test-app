@@ -1,13 +1,12 @@
-# Tokyo Live 3D — Modern (centered + tooltips + HLS-first)
+# Tokyo Live 3D — Modern v2
+- Centro scena corretto e inquadratura più alta (mondo centrato)
+- Drag orizzontale **invertito** (come richiesto); verticale invariata
+- Colori e contrasto maggiorati (distretti colorati, strade, palette edifici, emissive)
+- Tooltip sui marker
+- Overlay smart (HLS via proxy > YouTube > iframe; timeout di 2.5s per rilevare iframe bloccati)
+- Test HLS via proxy incluso (autoplay muted)
 
-Pronto per Vercel:
+Vercel:
 - Build: `npm run build`
 - Output: `dist`
 - Env: `VITE_PROXY_BASE = https://<subdomain>.up.railway.app`
-
-Novità
-- **Centro scena allineato al centro schermo** (telecamera iniziale corretta)
-- **Tooltip on hover** sui marker (nome località)
-- **Overlay smart**: usa HLS via proxy se `marker.hlsUrl` è presente, altrimenti iframe.
-  Se l'iframe è bloccato (X-Frame-Options/CSP), mostra un messaggio di fallback.
-- **Autoplay (muted)** per compatibilità Chrome/Safari/Firefox
