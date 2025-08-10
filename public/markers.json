@@ -1,78 +1,51 @@
 [
   {
-    "id": "tokyo-tower",
-    "name": "Tokyo Tower",
-    "pos": [
-      -16,
-      0,
-      -10
-    ],
-    "youtubeFullUrl": "https://www.youtube.com/embed/nu6NE55_X7A?autoplay=1&mute=1&modestbranding=1&rel=0",
-    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-tower.html"
-  },
-  {
-    "id": "shibuya",
-    "name": "Shibuya Scramble Crossing",
-    "pos": [
-      0,
-      0,
-      0
-    ],
-    "youtubeFullUrl": "https://www.youtube.com/embed/live_stream?channel=UCWs8rt4ofGmdV4N6KQpP10Q&autoplay=1&mute=1",
-    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-shibuya-scramble-crossing.html"
-  },
-  {
     "id": "fuji",
-    "name": "Mount Fuji (Kawaguchiko Ropeway)",
-    "pos": [
-      -24,
-      0,
-      4
-    ],
-    "ytId": "Sv9hcJ3k5h4",
-    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/yamanashi-prefecture/fujikawaguchiko/mount-fuji.html"
+    "name": "Mount Fuji",
+    "pos": [-30, 0, 20],
+    "youtubeFullUrl": "https://www.youtube.com/embed/live_stream?channel=UCq5mUmzdtm9dQq6sXN_UiIw&autoplay=1&mute=1",
+    "pageUrl": "https://www.youtube.com/@livecamjapan"
+  },
+  {
+    "id": "tokyotower",
+    "name": "Tokyo Tower",
+    "pos": [-12, 0, 5],
+    "youtubeFullUrl": "https://www.youtube.com/embed/nu6NE55_X7A?autoplay=1&mute=1",
+    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-tower.html"
   },
   {
     "id": "shinjuku",
     "name": "Shinjuku - Kabukichō",
-    "pos": [
-      -8,
-      0,
-      12
-    ],
+    "pos": [5, 0, 8],
+    "youtubeFullUrl": "https://www.youtube.com/embed/3kPH7kTphnE?autoplay=1&mute=1",
     "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/shinjuku-kabukicho.html"
+  },
+  {
+    "id": "shibuya",
+    "name": "Shibuya Scramble Crossing",
+    "pos": [0, 0, 0],
+    "youtubeFullUrl": "https://www.youtube.com/embed/live_stream?channel=UCGCZAYq5Xxojl_tSXcVJhiQ&autoplay=1&mute=1",
+    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-shibuya-scramble-crossing.html"
+  },
+  {
+    "id": "ginza",
+    "name": "Ginza – Sukiyabashi Crossing",
+    "pos": [10, 0, 10],
+    "youtubeFullUrl": "https://www.youtube.com/embed/1Xm5bjdI5hU?autoplay=1&mute=1",
+    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-panorama.html"
   },
   {
     "id": "skytree",
     "name": "Tokyo Skytree",
-    "pos": [
-      24,
-      0,
-      -2
-    ],
-    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/tokyo-skytree.html",
-    "youtubeFullUrl": ""
+    "pos": [24, 0, -2],
+    "youtubeFullUrl": "https://www.youtube.com/embed/live_stream?channel=UCkAB51Lbgor6SW8aE4S3zuQ&autoplay=1&mute=1",
+    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/tokyo-skytree.html"
   },
   {
     "id": "asakusa",
     "name": "Asakusa - Sensō-ji / Hōzōmon",
-    "pos": [
-      18,
-      0,
-      -6
-    ],
-    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/asakusa-hozomon-gate-sensoji.html",
-    "youtubeFullUrl": ""
-  },
-  {
-    "id": "ginza",
-    "name": "Ginza",
-    "pos": [
-      10,
-      0,
-      10
-    ],
-    "pageUrl": "https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-panorama.html",
-    "youtubeFullUrl": ""
+    "pos": [18, 0, -6],
+    "youtubeFullUrl": "https://www.youtube.com/embed/0Q4XZRgUiLY?autoplay=1&mute=1",
+    "pageUrl": "https://www.webcamtaxi.com/en/japan/tokyo/asakusa-hozomon-gate-sensoji.html"
   }
 ]
