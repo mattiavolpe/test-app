@@ -11,14 +11,16 @@ export default function App(){
   const [selected, setSelected] = useState(null)
   const [hovered, setHovered] = useState(null)
   const [showTest, setShowTest] = useState(false)
+  const [toast, setToast] = useState(null)
   const videoRef = useRef(null)
 
-  // Load markers.json
   useEffect(()=>{
-    fetch('/markers.json').then(r=>r.json()).then(setMarkers).catch(()=>setMarkers([]))
+    fetch('/markers.json')
+      .then(r => { if(!r.ok) throw new Error('markers.json not found'); return r.json() })
+      .then(setMarkers)
+      .catch(err => { console.error(err); setToast('Errore nel caricamento dei marker.'); setMarkers([]) })
   }, [])
 
-  // Scene
   useEffect(()=>{
     const el = mountRef.current
     const scene = new THREE.Scene()
@@ -32,12 +34,10 @@ export default function App(){
     renderer.setSize(el.clientWidth, el.clientHeight)
     el.appendChild(renderer.domElement)
 
-    // Lights
     scene.add(new THREE.AmbientLight(0xffffff, 0.5))
     const key = new THREE.DirectionalLight(0xfff0e0, 0.9); key.position.set(50,70,30); scene.add(key)
     const rim = new THREE.DirectionalLight(0x88aaff, 0.5); rim.position.set(-40,40,-20); scene.add(rim)
 
-    // Districts
     const dcols = [0x16202c, 0x1a2633, 0x0e151d, 0x1d2b38, 0x12202a]
     const district = new THREE.Group()
     for(let i=-2;i<=2;i++){
@@ -50,7 +50,6 @@ export default function App(){
     }
     scene.add(district)
 
-    // Roads
     const roadMat = new THREE.LineBasicMaterial({ })
     const makeLine = (x1,z1,x2,z2)=>{
       const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1,0.11,z1), new THREE.Vector3(x2,0.11,z2)])
@@ -59,7 +58,6 @@ export default function App(){
     for(let z=-36; z<=36; z+=12){ const l = makeLine(-60,z,60,z); scene.add(l) }
     for(let x=-54; x<=54; x+=12){ const l = makeLine(x,-60,x,60); scene.add(l) }
 
-    // Buildings
     const palette = [0x3b6ea8, 0x4a90e2, 0x6ec1e4, 0xa8c0ff, 0x8ea6c9, 0x637a99]
     const blockGroup = new THREE.Group()
     const rand = (a,b)=>a+Math.random()*(b-a)
@@ -82,32 +80,36 @@ export default function App(){
     }
     scene.add(blockGroup)
 
-    // Markers
-    const markerGeom = new THREE.SphereGeometry(0.8, 24, 18)
-    const markerMat = new THREE.MeshStandardMaterial({ color: 0xff3b3b, emissive: 0x220000, metalness: 0.25, roughness: 0.35 })
+    // Bigger markers + red beacon
+    const markerGeom = new THREE.SphereGeometry(1.4, 26, 20)
+    const markerMat = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x360000, metalness: 0.25, roughness: 0.3 })
+    const beaconMat  = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x3a0000, metalness: 0.1, roughness: 0.5, transparent:true, opacity:0.85 })
     const markerMeshes = []
 
     function rebuildMarkers(){
-      markerMeshes.forEach(m => { scene.remove(m) })
+      markerMeshes.forEach(m => { scene.remove(m.mesh); scene.remove(m.beacon) })
       markerMeshes.length = 0
       markers.forEach(m=>{
         const mesh = new THREE.Mesh(markerGeom, markerMat)
-        mesh.position.set(m.pos[0], 1.6, m.pos[2])
+        mesh.position.set(m.pos[0], 2.0, m.pos[2])
         mesh.userData = { id:m.id, name:m.name }
-        scene.add(mesh); markerMeshes.push(mesh)
+        const height = 6
+        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, height, 16), beaconMat)
+        beacon.position.set(m.pos[0], height/2, m.pos[2])
+        scene.add(beacon); scene.add(mesh)
+        markerMeshes.push({mesh, beacon})
       })
     }
     rebuildMarkers()
 
-    // Controls (drag horizontal inverted; WASD final fix)
     const keys = {}
     window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true)
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false)
     let yaw = 0, pitch = -0.18
     el.addEventListener('mousemove', (e)=>{
       if(e.buttons===1){
-        yaw += e.movementX * 0.0025      // inverted horizontal
-        pitch -= e.movementY * 0.0025    // vertical same
+        yaw += e.movementX * 0.0025
+        pitch -= e.movementY * 0.0025
         pitch = Math.max(-1.2, Math.min(0.3, pitch))
       }
     })
@@ -117,35 +119,31 @@ export default function App(){
       const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
       if(keys['w']) camera.position.addScaledVector(f, speed)
       if(keys['s']) camera.position.addScaledVector(f, -speed)
-      if(keys['a']) camera.position.addScaledVector(r, speed)   // A = left
-      if(keys['d']) camera.position.addScaledVector(r, -speed)  // D = right
+      if(keys['a']) camera.position.addScaledVector(r, -speed)
+      if(keys['d']) camera.position.addScaledVector(r, speed)
       const target = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(Math.sin(yaw), Math.tan(-pitch), Math.cos(yaw)))
       camera.lookAt(target)
     }
 
-    // Raycast
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
-
-    function onMove(e){
+    function intersectMarkers(mx, my){
       const rect = renderer.domElement.getBoundingClientRect()
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      mouse.x = ((mx - rect.left) / rect.width) * 2 - 1
+      mouse.y = -((my - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(mouse, camera)
-      const hit = raycaster.intersectObjects(markerMeshes)
+      const objs = markerMeshes.map(o => o.mesh)
+      return raycaster.intersectObjects(objs)
+    }
+    function onMove(e){
+      const hit = intersectMarkers(e.clientX, e.clientY)
       if(hit.length){
         const { id, name } = hit[0].object.userData
         setHovered({ id, name, x: e.clientX, y: e.clientY })
-      } else {
-        setHovered(null)
-      }
+      } else setHovered(null)
     }
     function onClick(e){
-      const rect = renderer.domElement.getBoundingClientRect()
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-      raycaster.setFromCamera(mouse, camera)
-      const hit = raycaster.intersectObjects(markerMeshes)
+      const hit = intersectMarkers(e.clientX, e.clientY)
       if(hit.length){
         const id = hit[0].object.userData.id
         const mk = markers.find(m => m.id === id)
@@ -179,7 +177,6 @@ export default function App(){
     }
   }, [markers])
 
-  // Test HLS via proxy
   useEffect(()=>{
     if(!showTest) return
     const video = videoRef.current
@@ -199,43 +196,42 @@ export default function App(){
 
   function OverlayContent({ marker }){
     const [resolvedHls, setResolvedHls] = useState(null)
-    const [state, setState] = useState('init') // init | loading | hls | youtube | iframeProxy | iframe | fail
+    const [state, setState] = useState('init')
+    const [reason, setReason] = useState('')
 
     useEffect(()=>{
       let cancelled = false
       async function resolve(){
-        // priority: direct hlsUrl -> ytId -> try pageUrl/iframeUrl via backend /gethls -> fallback /iframe or iframeUrl
-        if(marker.hlsUrl){
-          setResolvedHls(marker.hlsUrl); setState('hls'); return
-        }
-        if(marker.ytId){
-          setState('youtube'); return
-        }
-        // Try to extract HLS from any page URL
         const page = marker.pageUrl || marker.iframeUrl
         if(page && PROXY_BASE){
           try {
             setState('loading')
             const resp = await fetch(`${PROXY_BASE}/gethls?url=${encodeURIComponent(page)}`)
-            if(!cancelled && resp.ok){
-              const data = await resp.json()
-              if(data && data.url){
-                setResolvedHls(data.url); setState('hls'); return
+            if(!cancelled){
+              if(resp.ok){
+                const data = await resp.json()
+                if(data && data.url){
+                  setResolvedHls(data.url); setState('hls'); return
+                }
+              }else{
+                const txt = await resp.text()
+                setReason(txt || `gethls ${resp.status}`)
               }
             }
-          } catch {}
+          } catch (e) { if(!cancelled) setReason('gethls error') }
         }
-        // If we got here, try iframe proxy first (if pageUrl provided), else iframeUrl
-        if(marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); return }
-        if(marker.iframeUrl){ setState('iframe'); return }
-        setState('fail')
+        if(!cancelled && marker.hlsUrl){ setResolvedHls(marker.hlsUrl); setState('hls'); return }
+        if(!cancelled && marker.ytId){ setState('youtube'); return }
+        if(!cancelled && marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); return }
+        if(!cancelled && marker.iframeUrl){ setState('iframe'); return }
+        if(!cancelled){ setState('fail') }
       }
       resolve()
       return ()=>{ cancelled = true }
     }, [marker])
 
     if(state === 'loading'){
-      return <div className="video-wrap" style={{color:'#fff'}}>Caricamento stream…</div>
+      return <div className="video-wrap" style={{color:'#fff'}}>Ricerca dello stream…</div>
     }
     if(state === 'hls' && resolvedHls){
       const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(resolvedHls)}` : resolvedHls
@@ -257,10 +253,16 @@ export default function App(){
       return <iframe title={marker.id} src={proxied} style={{width:'100%',height:'100%',border:0}} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
     }
     if(state === 'iframe' && marker.iframeUrl){
-      return <iframe title={marker.id} src={marker.iframeUrl} style={{width:'100%',height:'100%',border:0}} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
+      return <iframe title={marker.id} src={marker.iframeUrl} style={{width:'100%',height:'100%'}} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
     }
     if(state === 'fail'){
-      return <div className="video-wrap" style={{color:'#fff'}}>Nessuna sorgente disponibile per questo marker.</div>
+      return <div className="video-wrap" style={{color:'#fff',padding:20,textAlign:'center'}}>
+        <div>
+          <h3>Nessuno stream trovato</h3>
+          {reason && <div style={{opacity:0.8,marginTop:8,fontSize:13}}>Dettagli: {reason}</div>}
+          <p style={{marginTop:10}}>Puoi aggiungere un <code>hlsUrl</code> diretto nel <code>markers.json</code> per forzare il player.</p>
+        </div>
+      </div>
     }
     return null
   }
@@ -287,7 +289,7 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.2</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.4</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
           <div style={{marginTop:6}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
@@ -296,9 +298,10 @@ export default function App(){
         </div>
       </div>
 
+      {toast && <div className="toast">{toast}</div>}
       {hovered && <div className="marker-tooltip" style={{left:hovered.x, top:hovered.y}}>{hovered.name}</div>}
 
-      <div className="legend">Marker da <code>public/markers.json</code> — priorità: HLS → YouTube → estrazione HLS via backend → iframe proxato → iframe diretto</div>
+      <div className="legend">Marker da <code>public/markers.json</code> — priorità: estrazione HLS → HLS diretto → YouTube → iframe proxato → iframe</div>
 
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 
