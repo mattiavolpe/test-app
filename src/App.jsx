@@ -12,9 +12,9 @@ export default function App(){
   const [hovered, setHovered] = useState(null)
   const [showTest, setShowTest] = useState(false)
   const [toast, setToast] = useState(null)
+  const [debug, setDebug] = useState(false)
   const videoRef = useRef(null)
 
-  // Load markers.json
   useEffect(()=>{
     fetch('/markers.json')
       .then(r => { if(!r.ok) throw new Error('markers.json not found'); return r.json() })
@@ -22,7 +22,6 @@ export default function App(){
       .catch(err => { console.error(err); setToast('Errore nel caricamento dei marker.'); setMarkers([]) })
   }, [])
 
-  // Scene
   useEffect(()=>{
     const el = mountRef.current
     const scene = new THREE.Scene()
@@ -36,12 +35,10 @@ export default function App(){
     renderer.setSize(el.clientWidth, el.clientHeight)
     el.appendChild(renderer.domElement)
 
-    // Lights
     scene.add(new THREE.AmbientLight(0xffffff, 0.5))
     const key = new THREE.DirectionalLight(0xfff0e0, 0.9); key.position.set(50,70,30); scene.add(key)
     const rim = new THREE.DirectionalLight(0x88aaff, 0.5); rim.position.set(-40,40,-20); scene.add(rim)
 
-    // Districts
     const dcols = [0x16202c, 0x1a2633, 0x0e151d, 0x1d2b38, 0x12202a]
     const district = new THREE.Group()
     for(let i=-2;i<=2;i++){
@@ -54,7 +51,6 @@ export default function App(){
     }
     scene.add(district)
 
-    // Roads
     const roadMat = new THREE.LineBasicMaterial({ })
     const makeLine = (x1,z1,x2,z2)=>{
       const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1,0.11,z1), new THREE.Vector3(x2,0.11,z2)])
@@ -63,7 +59,6 @@ export default function App(){
     for(let z=-36; z<=36; z+=12){ const l = makeLine(-60,z,60,z); scene.add(l) }
     for(let x=-54; x<=54; x+=12){ const l = makeLine(x,-60,x,60); scene.add(l) }
 
-    // Buildings
     const palette = [0x3b6ea8, 0x4a90e2, 0x6ec1e4, 0xa8c0ff, 0x8ea6c9, 0x637a99]
     const blockGroup = new THREE.Group()
     const rand = (a,b)=>a+Math.random()*(b-a)
@@ -86,7 +81,6 @@ export default function App(){
     }
     scene.add(blockGroup)
 
-    // Markers (bigger + beacon)
     const markerGeom = new THREE.SphereGeometry(2.0, 28, 22)
     const markerMat = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x360000, metalness: 0.25, roughness: 0.3 })
     const beaconMat  = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x3a0000, metalness: 0.1, roughness: 0.5, transparent:true, opacity:0.9 })
@@ -108,7 +102,6 @@ export default function App(){
     }
     rebuildMarkers()
 
-    // Controls (drag inverted; WASD correct)
     const keys = {}
     window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true)
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false)
@@ -126,13 +119,12 @@ export default function App(){
       const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
       if(keys['w']) camera.position.addScaledVector(f, speed)
       if(keys['s']) camera.position.addScaledVector(f, -speed)
-      if(keys['a']) camera.position.addScaledVector(r, speed)   // LEFT (keep as last good state per user)
-      if(keys['d']) camera.position.addScaledVector(r, -speed)  // RIGHT
+      if(keys['a']) camera.position.addScaledVector(r, speed)
+      if(keys['d']) camera.position.addScaledVector(r, -speed)
       const target = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(Math.sin(yaw), Math.tan(-pitch), Math.cos(yaw)))
       camera.lookAt(target)
     }
 
-    // Raycast helpers
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
     function intersectMarkers(mx, my){
@@ -185,7 +177,6 @@ export default function App(){
     }
   }, [markers])
 
-  // Test HLS via proxy
   useEffect(()=>{
     if(!showTest) return
     const video = videoRef.current
@@ -208,61 +199,77 @@ export default function App(){
     const [resolvedYt, setResolvedYt] = useState(null)
     const [state, setState] = useState('init')
     const [reason, setReason] = useState('')
+    const [log, setLog] = useState([])
 
     useEffect(()=>{
       let cancelled = false
       async function resolve(){
+        const L = (...a)=>{ setLog(x=>[...x, a.join(' ')]) }
         const page = marker.pageUrl || marker.iframeUrl
-        if(marker.hlsUrl){ setResolvedHls(marker.hlsUrl); setState('hls'); return }
-        if(marker.ytId){ setResolvedYt(marker.ytId); setState('youtube'); return }
-
+        if(marker.hlsUrl){ setResolvedHls(marker.hlsUrl); setState('hls'); L('hlsUrl diretto'); return }
+        if(marker.ytId){ setResolvedYt(marker.ytId); setState('youtube'); L('ytId diretto'); return }
         if(page && PROXY_BASE){
           try{
-            setState('loading')
-            // Try YouTube extraction first (new v1.8 backend)
+            setState('loading'); L('getyoutube →', page)
             const rYT = await fetch(`${PROXY_BASE}/getyoutube?url=${encodeURIComponent(page)}`)
+            L('getyoutube status', String(rYT.status))
             if(!cancelled && rYT.ok){
               const d = await rYT.json()
+              L('getyoutube payload', JSON.stringify(d))
               if(d && d.id){ setResolvedYt(d.id); setState('youtube'); return }
             }
-          }catch(e){}
+          }catch(e){ L('getyoutube error') }
           try{
+            L('gethls →', page)
             const r = await fetch(`${PROXY_BASE}/gethls?url=${encodeURIComponent(page)}`)
+            L('gethls status', String(r.status))
             if(!cancelled){
               if(r.ok){
-                const data = await r.json()
+                const data = await r.json(); L('gethls payload', JSON.stringify(data))
                 if(data && data.url){ setResolvedHls(data.url); setState('hls'); return }
               }else{
                 const txt = await r.text(); setReason(txt || `gethls ${r.status}`)
               }
             }
-          }catch(e){ if(!cancelled) setReason('gethls error') }
+          }catch(e){ if(!cancelled) { setReason('gethls error'); L('gethls error') } }
         }
-        if(!cancelled && marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); return }
-        if(!cancelled && marker.iframeUrl){ setState('iframe'); return }
-        if(!cancelled){ setState('fail') }
+        if(!cancelled && marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); L('fallback iframeProxy'); return }
+        if(!cancelled && marker.iframeUrl){ setState('iframe'); L('fallback iframe'); return }
+        if(!cancelled){ setState('fail'); L('fail') }
       }
       resolve()
       return ()=>{ cancelled = true }
     }, [marker])
 
+    const debugBox = debug && log.length ? (
+      <div style={{position:'absolute',right:10,top:10,background:'rgba(0,0,0,0.6)',color:'#e8ecf3',padding:8,borderRadius:8,fontSize:12,maxWidth:'50%',whiteSpace:'pre-wrap'}}>
+        {log.join('\n')}
+      </div>
+    ) : null
+
     if(state === 'loading'){
-      return <div className="video-wrap" style={{color:'#fff'}}>Ricerca dello stream…</div>
+      return <div className="video-wrap" style={{color:'#fff'}}>
+        {debugBox}
+        Ricerca dello stream…
+      </div>
     }
     if(state === 'hls' && resolvedHls){
       const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(resolvedHls)}` : resolvedHls
-      return <div className="video-wrap"><VideoPlayer src={src} autoPlay /></div>
+      return <div className="video-wrap">{debugBox}<VideoPlayer src={src} autoPlay /></div>
     }
     if(state === 'youtube' && (resolvedYt || marker.ytId)){
       const id = resolvedYt || marker.ytId
       return (
-        <iframe
-          title={marker.id}
-          src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1`}
-          style={{width:'100%',height:'100%',border:0}}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-        />
+        <div className="video-wrap">
+          {debugBox}
+          <iframe
+            title={marker.id}
+            src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1`}
+            style={{width:'100%',height:'100%',border:0}}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
       )
     }
     if(state === 'iframeProxy' && marker.pageUrl && PROXY_BASE){
@@ -274,10 +281,10 @@ export default function App(){
     }
     if(state === 'fail'){
       return <div className="video-wrap" style={{color:'#fff',padding:20,textAlign:'center'}}>
+        {debugBox}
         <div>
           <h3>Nessuno stream trovato</h3>
           {reason && <div style={{opacity:0.8,marginTop:8,fontSize:13}}>Dettagli: {reason}</div>}
-          <p style={{marginTop:10}}>Se conosci l’ID YouTube o un URL HLS, aggiungilo in <code>markers.json</code> per forzare il player.</p>
         </div>
       </div>
     }
@@ -306,10 +313,15 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.6</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.7</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
-          <div style={{marginTop:6}}>
+          <div style={{marginTop:6,display:'flex',gap:8,alignItems:'center'}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
+            <button className="btn" onClick={()=>setToast(t => t ? null : 'Suggerimento: attiva il debug per vedere il percorso scelto (YouTube/HLS/iframe).')}>Suggerimento</button>
+            <label style={{display:'inline-flex',gap:6,alignItems:'center',background:'#0c0f14',border:'1px solid #2a2f3a',padding:'6px 10px',borderRadius:8,color:'#e8ecf3'}}>
+              <input type="checkbox" onChange={e=>setDebug(e.target.checked)} />
+              Debug
+            </label>
             {PROXY_BASE ? <span className="badge">Proxy attivo</span> : <span className="badge" style={{background:'#a55'}}>Proxy non configurato</span>}
           </div>
         </div>
@@ -318,7 +330,7 @@ export default function App(){
       {toast && <div className="toast">{toast}</div>}
       {hovered && <div className="marker-tooltip" style={{left:hovered.x, top:hovered.y}}>{hovered.name}</div>}
 
-      <div className="legend">Priorità: HLS (diretto) → YouTube (id noto o estratto) → HLS da pagina → iframe proxato → iframe</div>
+      <div className="legend">Priorità: HLS → YouTube → HLS da pagina → iframe proxato → iframe (usa il toggle Debug per vedere i passaggi)</div>
 
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 
