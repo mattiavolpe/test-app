@@ -197,7 +197,7 @@ export default function App(){
   function OverlayContent({ marker }){
     const [resolvedHls, setResolvedHls] = useState(null)
     const [resolvedYt, setResolvedYt] = useState(null)
-    const [resolvedYtUrl, setResolvedYtUrl] = useState(null) // NEW: full embed URL
+    const [resolvedYtUrl, setResolvedYtUrl] = useState(null)
     const [state, setState] = useState('init')
     const [reason, setReason] = useState('')
     const [log, setLog] = useState([])
@@ -205,8 +205,24 @@ export default function App(){
     useEffect(()=>{
       let cancelled = false
       async function resolve(){
-        const L = (...a)=>{ setLog(x=>[...x, a.join(' ')]) }
+        
+
+        
         const page = marker.pageUrl || marker.iframeUrl
+        // Fast-path: if marker already provides direct YouTube URL/ID, use it.
+        if(marker.youtubeFullUrl){
+          setResolvedYtUrl(marker.youtubeFullUrl);
+          setState('youtubeUrl');
+          L('marker youtubeFullUrl diretto');
+          return;
+        }
+        if(marker.ytId){
+          setResolvedYt(marker.ytId);
+          setState('youtube');
+          L('marker ytId diretto');
+          return;
+        }
+
         if(marker.hlsUrl){ setResolvedHls(marker.hlsUrl); setState('hls'); L('hlsUrl diretto'); return }
         if(marker.ytId){ setResolvedYt(marker.ytId); setState('youtube'); L('ytId diretto'); return }
         if(page && PROXY_BASE){
