@@ -40,7 +40,7 @@ export default function App(){
     const key = new THREE.DirectionalLight(0xfff0e0, 0.9); key.position.set(50,70,30); scene.add(key)
     const rim = new THREE.DirectionalLight(0x88aaff, 0.5); rim.position.set(-40,40,-20); scene.add(rim)
 
-    // Districts & roads
+    // Districts
     const dcols = [0x16202c, 0x1a2633, 0x0e151d, 0x1d2b38, 0x12202a]
     const district = new THREE.Group()
     for(let i=-2;i<=2;i++){
@@ -53,6 +53,7 @@ export default function App(){
     }
     scene.add(district)
 
+    // Roads
     const roadMat = new THREE.LineBasicMaterial({ })
     const makeLine = (x1,z1,x2,z2)=>{
       const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1,0.11,z1), new THREE.Vector3(x2,0.11,z2)])
@@ -101,15 +102,15 @@ export default function App(){
     }
     rebuildMarkers()
 
-    // Controls (invert horizontal drag)
+    // Controls (drag horizontal inverted; WASD fixed as requested)
     const keys = {}
     window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true)
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false)
     let yaw = 0, pitch = -0.18
     el.addEventListener('mousemove', (e)=>{
       if(e.buttons===1){
-        yaw += e.movementX * 0.0025
-        pitch -= e.movementY * 0.0025
+        yaw += e.movementX * 0.0025      // inverted horizontal
+        pitch -= e.movementY * 0.0025    // vertical same
         pitch = Math.max(-1.2, Math.min(0.3, pitch))
       }
     })
@@ -117,8 +118,9 @@ export default function App(){
       const speed = (keys['shift']? 18: 9) * dt
       const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
       const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
-      if(keys['w']) camera.position.addScaledVector(f, -speed)
-      if(keys['s']) camera.position.addScaledVector(f, speed)
+      // FIX: normal mapping for WASD
+      if(keys['w']) camera.position.addScaledVector(f, speed)
+      if(keys['s']) camera.position.addScaledVector(f, -speed)
       if(keys['a']) camera.position.addScaledVector(r, -speed)
       if(keys['d']) camera.position.addScaledVector(r, speed)
       const target = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(Math.sin(yaw), Math.tan(-pitch), Math.cos(yaw)))
@@ -200,22 +202,17 @@ export default function App(){
   }, [showTest])
 
   function OverlayContent({ marker }){
-    const [mode, setMode] = useState(marker.hlsUrl ? 'hls' : (marker.ytId ? 'youtube' : 'iframe'))
-    const [iframeError, setIframeError] = useState(false)
-    const [iframeTimeoutPassed, setIframeTimeoutPassed] = useState(false)
+    // priority: hlsUrl -> ytId -> iframeProxy (pageUrl) -> iframeUrl
+    const hasHls = marker.hlsUrl && marker.hlsUrl.length > 0
+    const hasYt = marker.ytId && marker.ytId.length > 0
+    const hasPage = marker.pageUrl && marker.pageUrl.length > 0
+    const hasIframe = marker.iframeUrl && marker.iframeUrl.length > 0
 
-    useEffect(()=>{
-      if(mode !== 'iframe') return
-      setIframeTimeoutPassed(false)
-      const t = setTimeout(()=>setIframeTimeoutPassed(true), 2500)
-      return ()=>clearTimeout(t)
-    }, [mode, marker])
-
-    if(mode === 'hls' && marker.hlsUrl){
+    if(hasHls){
       const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(marker.hlsUrl)}` : marker.hlsUrl
       return <div className="video-wrap"><VideoPlayer src={src} autoPlay /></div>
     }
-    if(mode === 'youtube' && marker.ytId){
+    if(hasYt){
       return (
         <iframe
           title={marker.id}
@@ -226,35 +223,28 @@ export default function App(){
         />
       )
     }
-    if(mode === 'iframe' && marker.iframeUrl && !iframeError){
+    if(hasPage && PROXY_BASE){
+      const proxied = `${PROXY_BASE}/iframe?url=${encodeURIComponent(marker.pageUrl)}`
       return (
-        <>
-          <iframe
-            title={marker.id}
-            src={marker.iframeUrl}
-            style={{width:'100%',height:'100%',border:0}}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            onError={()=>setIframeError(true)}
-          />
-          {iframeTimeoutPassed && (
-            <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
-              <div style={{background:'rgba(0,0,0,0.6)',color:'#fff',padding:12,borderRadius:8}}>
-                Sorgente non embeddabile (X-Frame-Options/CSP). Apri in una nuova scheda o usa un URL HLS tramite proxy.
-              </div>
-            </div>
-          )}
-        </>
+        <iframe
+          title={marker.id}
+          src={proxied}
+          style={{width:'100%',height:'100%',border:0}}
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+        />
       )
     }
-    return (
-      <div className="video-wrap" style={{color:'#fff',padding:24,textAlign:'center'}}>
-        <div style={{maxWidth:700}}>
-          <h3>Impossibile mostrare la cam</h3>
-          <p>Questa sorgente potrebbe bloccare l'iframe. Se hai un URL HLS o una diretta YouTube, posso integrarla qui evitando il blocco.</p>
-          {marker.iframeUrl && <p><a href={marker.iframeUrl} target="_blank" rel="noreferrer">Apri in nuova scheda</a></p>}
-        </div>
-      </div>
-    )
+    if(hasIframe){
+      return (
+        <iframe
+          title={marker.id}
+          src={marker.iframeUrl}
+          style={{width:'100%',height:'100%',border:0}}
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+        />
+      )
+    }
+    return <div className="video-wrap" style={{color:'#fff'}}>Nessuna sorgente disponibile per questo marker.</div>
   }
 
   function VideoPlayer({ src, autoPlay }){
@@ -279,7 +269,7 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.1</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
           <div style={{marginTop:6}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
@@ -290,7 +280,7 @@ export default function App(){
 
       {hovered && <div className="marker-tooltip" style={{left:hovered.x, top:hovered.y}}>{hovered.name}</div>}
 
-      <div className="legend">Marker: Shibuya • Tokyo Tower • Asakusa • Shinjuku • Ginza • Skytree • Mt. Fuji</div>
+      <div className="legend">Marker caricati da <code>public/markers.json</code> — priorità: HLS → YouTube → iframe proxato → iframe diretto</div>
 
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 
