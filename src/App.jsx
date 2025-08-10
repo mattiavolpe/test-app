@@ -86,7 +86,7 @@ export default function App(){
     }
     scene.add(blockGroup)
 
-    // Markers (even bigger + beacon)
+    // Markers (bigger + beacon)
     const markerGeom = new THREE.SphereGeometry(2.0, 28, 22)
     const markerMat = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x360000, metalness: 0.25, roughness: 0.3 })
     const beaconMat  = new THREE.MeshStandardMaterial({ color: 0xff2e2e, emissive: 0x3a0000, metalness: 0.1, roughness: 0.5, transparent:true, opacity:0.9 })
@@ -108,7 +108,7 @@ export default function App(){
     }
     rebuildMarkers()
 
-    // Controls (drag inverted; final WASD fix)
+    // Controls (drag inverted; WASD correct)
     const keys = {}
     window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true)
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false)
@@ -124,10 +124,9 @@ export default function App(){
       const speed = (keys['shift']? 18: 9) * dt
       const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
       const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
-      // A should go left, D right; with our r vector, invert signs accordingly:
       if(keys['w']) camera.position.addScaledVector(f, speed)
       if(keys['s']) camera.position.addScaledVector(f, -speed)
-      if(keys['a']) camera.position.addScaledVector(r, speed)   // LEFT
+      if(keys['a']) camera.position.addScaledVector(r, speed)   // LEFT (keep as last good state per user)
       if(keys['d']) camera.position.addScaledVector(r, -speed)  // RIGHT
       const target = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(Math.sin(yaw), Math.tan(-pitch), Math.cos(yaw)))
       camera.lookAt(target)
@@ -214,25 +213,19 @@ export default function App(){
       let cancelled = false
       async function resolve(){
         const page = marker.pageUrl || marker.iframeUrl
-        // 1) If we already have hlsUrl -> play it
         if(marker.hlsUrl){ setResolvedHls(marker.hlsUrl); setState('hls'); return }
-        // 2) If we already have ytId -> youtube
         if(marker.ytId){ setResolvedYt(marker.ytId); setState('youtube'); return }
-        // 3) Try to detect YouTube id from page (generic)
+
         if(page && PROXY_BASE){
           try{
             setState('loading')
+            // Try YouTube extraction first (new v1.8 backend)
             const rYT = await fetch(`${PROXY_BASE}/getyoutube?url=${encodeURIComponent(page)}`)
             if(!cancelled && rYT.ok){
               const d = await rYT.json()
-              if(d && d.id){
-                setResolvedYt(d.id); setState('youtube'); return
-              }
+              if(d && d.id){ setResolvedYt(d.id); setState('youtube'); return }
             }
           }catch(e){}
-        }
-        // 4) Try to extract HLS from page
-        if(page && PROXY_BASE){
           try{
             const r = await fetch(`${PROXY_BASE}/gethls?url=${encodeURIComponent(page)}`)
             if(!cancelled){
@@ -245,7 +238,6 @@ export default function App(){
             }
           }catch(e){ if(!cancelled) setReason('gethls error') }
         }
-        // 5) Fallback iframe proxato / diretto
         if(!cancelled && marker.pageUrl && PROXY_BASE){ setState('iframeProxy'); return }
         if(!cancelled && marker.iframeUrl){ setState('iframe'); return }
         if(!cancelled){ setState('fail') }
@@ -314,7 +306,7 @@ export default function App(){
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.92)',padding:8,borderRadius:8,fontSize:14,color:'#0b0f14'}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.5</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern v3.6</div>
           <div style={{marginTop:6}}>Trascina (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi.</div>
           <div style={{marginTop:6}}>
             <button className="btn" onClick={()=>setShowTest(s=>!s)}>{showTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>

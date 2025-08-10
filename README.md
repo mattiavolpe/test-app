@@ -1,10 +1,19 @@
-# Tokyo Live 3D — Modern v3.2
-- WASD definitivo (A/D corretti)
-- Marker da /public/markers.json
-- Click marker: HLS diretto (se presente) → YouTube → **estrazione HLS via backend** da qualunque pagina → iframe proxato → iframe
-- Test HLS via proxy incluso (autoplay muted)
+# Tokyo Live 3D — Modern v3.6
 
-Vercel:
-- Build: npm run build
-- Output: dist
-- Env: VITE_PROXY_BASE = https://<subdomain>.up.railway.app
+## Novità
+- Marker molto più visibili (sfera grande + beacon rosso).
+- Navigazione: drag orizzontale invertito; WASD corretto.
+- Click sui marker → **player diretto** quando possibile:
+  1) `hlsUrl` diretto
+  2) `ytId` diretto
+  3) `getyoutube` (estrazione ID YouTube da pagina)
+  4) `gethls` (estrazione .m3u8 da pagina)
+  5) fallback: iframe proxato o diretto
+
+## Config Vercel
+- Build: `npm run build`
+- Output: `dist`
+- Env: `VITE_PROXY_BASE = https://<il-tuo>.up.railway.app`
+
+## Marker
+Modifica `public/markers.json` per aggiungere/rimuovere punti (niente rebuild necessario).
