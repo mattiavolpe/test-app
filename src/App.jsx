@@ -2,88 +2,234 @@ import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Hls from 'hls.js'
 
-const CAMERA_LIST = [
-  { id: 'shibuya', name: 'Shibuya Scramble Crossing', embedUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-shibuya-scramble-crossing.html', pos: [0, 0, 0] },
-  { id: 'shinjuku', name: 'Shinjuku - Kabukichō', embedUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/shinjuku-kabukicho.html', pos: [18, 0, -6] },
-  { id: 'tokyo-tower', name: 'Tokyo Tower (panorama)', embedUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-tower.html', pos: [-12, 0, -18] },
-  { id: 'asakusa', name: 'Asakusa - Senso-ji / Hōzōmon', embedUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/hozomon-gate-asakusa.html', pos: [-24, 0, 6] }
+// Proxy base per HLS (Railway)
+const PROXY_BASE = import.meta.env.VITE_PROXY_BASE || ''
+
+// Dati marker: posizione "artistica" in una mappa 3D stilizzata di Tokyo
+// iframeUrl: pagine di webcam pubbliche realistiche (embedding via sandbox)
+const MARKERS = [
+  {
+    id: 'shibuya',
+    name: 'Shibuya Scramble Crossing',
+    pos: [0, 0, 0],
+    iframeUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-shibuya-scramble-crossing.html'
+  },
+  {
+    id: 'tokyo-tower',
+    name: 'Tokyo Tower',
+    pos: [-16, 0, -10],
+    iframeUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-tower.html'
+  },
+  {
+    id: 'asakusa',
+    name: 'Asakusa - Sensō-ji / Hōzōmon',
+    pos: [18, 0, -6],
+    iframeUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/hozomon-gate-asakusa.html'
+  },
+  {
+    id: 'shinjuku',
+    name: 'Shinjuku - Kabukichō',
+    pos: [-8, 0, 12],
+    iframeUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/shinjuku-kabukicho.html'
+  },
+  {
+    id: 'ginza',
+    name: 'Ginza',
+    pos: [10, 0, 10],
+    iframeUrl: 'https://www.skylinewebcams.com/en/webcam/japan/kanto/tokyo/tokyo-panorama.html'
+  },
+  {
+    id: 'skytree',
+    name: 'Tokyo Skytree',
+    pos: [24, 0, -2],
+    iframeUrl: 'https://www.webcamtaxi.com/en/japan/tokyo/tokyo-skytree.html'
+  },
+  {
+    id: 'fuji',
+    name: 'Mount Fuji (Fujikawaguchiko)',
+    pos: [-24, 0, 4],
+    iframeUrl: 'https://www.skylinewebcams.com/en/webcam/japan/yamanashi-prefecture/fujikawaguchiko/mount-fuji.html'
+  }
 ]
 
+// Stream HLS demo per test player via proxy (stabile)
 const DEMO_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
 
-export default function App () {
+export default function App() {
   const mountRef = useRef(null)
-  const [selectedCam, setSelectedCam] = useState(null)
+  const [selected, setSelected] = useState(null) // marker selezionato
   const [showHlsTest, setShowHlsTest] = useState(false)
   const videoRef = useRef(null)
-  const PROXY_BASE = import.meta.env.VITE_PROXY_BASE || ''
 
   useEffect(() => {
     const el = mountRef.current
+
+    // Scene base
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xbfd1e5)
+    scene.background = new THREE.Color(0x0e1116)
     const camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 1000)
-    camera.position.set(0, 30, 40)
+    camera.position.set(0, 24, 38)
+
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(el.clientWidth, el.clientHeight)
     el.appendChild(renderer.domElement)
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0)
-    hemi.position.set(0, 50, 0); scene.add(hemi)
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x222222 }))
-    ground.rotation.x = -Math.PI/2; scene.add(ground)
+    // Luci soft
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6))
+    const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(35, 50, 20); scene.add(dir)
 
-    const blockMat = new THREE.MeshStandardMaterial({ color: 0x333a40 })
-    for (let i=-4;i<=4;i++){ for (let j=-3;j<=3;j++){ if (Math.random()>0.35){ const h=2+Math.random()*10; const mesh=new THREE.Mesh(new THREE.BoxGeometry(6,h,6),blockMat); mesh.position.set(i*8+(Math.random()*2-1),h/2,j*8+(Math.random()*2-1)); scene.add(mesh) } } }
+    // Piano "mappa" con texture semplice (grid)
+    const grid = new THREE.GridHelper(120, 60, 0x2a2f3a, 0x1a1f2a)
+    grid.position.y = 0; scene.add(grid)
 
-    const markerGeom = new THREE.SphereGeometry(0.6,16,12)
-    const markerMat = new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0x440000 })
-    const markers=[]; CAMERA_LIST.forEach(cam=>{ const m=new THREE.Mesh(markerGeom,markerMat); m.position.set(cam.pos[0],1.2,cam.pos[2]); m.userData={camId:cam.id}; scene.add(m); markers.push(m) })
+    // Blocchi stile "quartieri"
+    const blockMat = new THREE.MeshStandardMaterial({ color: 0x28303b, roughness: 0.8, metalness: 0.1 })
+    const rand = (a,b)=>a+Math.random()*(b-a)
+    for(let i=-6;i<=6;i++){
+      for(let j=-5;j<=5;j++){
+        if(Math.random()>0.3){
+          const h = rand(1.2, 8)
+          const box = new THREE.Mesh(new THREE.BoxGeometry(3, h, 3), blockMat)
+          box.position.set(i*5+rand(-0.4,0.4), h/2, j*5+rand(-0.4,0.4))
+          scene.add(box)
+        }
+      }
+    }
 
-    const raycaster=new THREE.Raycaster(); const mouse=new THREE.Vector2()
-    function onClick(e){ const b=renderer.domElement.getBoundingClientRect(); mouse.x=((e.clientX-b.left)/b.width)*2-1; mouse.y=-((e.clientY-b.top)/b.height)*2+1; raycaster.setFromCamera(mouse,camera); const hit=raycaster.intersectObjects(markers); if(hit.length){ const cam=CAMERA_LIST.find(c=>c.id===hit[0].object.userData.camId); if(cam) setSelectedCam(cam) } }
+    // Marker rossi
+    const markerGeom = new THREE.SphereGeometry(0.6, 20, 14)
+    const markerMat = new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0x330000, roughness: 0.4, metalness: 0.2})
+    const markers = []
+    MARKERS.forEach(m => {
+      const mesh = new THREE.Mesh(markerGeom, markerMat)
+      mesh.position.set(m.pos[0], 1.2, m.pos[2])
+      mesh.userData = { id: m.id }
+      scene.add(mesh)
+      markers.push(mesh)
+    })
+
+    // Controlli "street-view like": orbit + WASD
+    const keys = {}
+    window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true)
+    window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false)
+
+    let yaw = 0, pitch = -0.2
+    el.addEventListener('mousemove', (e)=>{
+      if(e.buttons===1){
+        yaw -= e.movementX * 0.0025
+        pitch -= e.movementY * 0.0025
+        pitch = Math.max(-1.2, Math.min(0.3, pitch))
+      }
+    })
+
+    function updateCamera(dt){
+      const speed = (keys['shift']? 18: 9) * dt
+      const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
+      if(keys['w']) camera.position.addScaledVector(forward, -speed)
+      if(keys['s']) camera.position.addScaledVector(forward, speed)
+      if(keys['a']) camera.position.addScaledVector(right, -speed)
+      if(keys['d']) camera.position.addScaledVector(right, speed)
+      const target = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(Math.sin(yaw), Math.tan(-pitch), Math.cos(yaw)))
+      camera.lookAt(target)
+    }
+
+    // Raycasting click marker
+    const raycaster = new THREE.Raycaster()
+    const mouse = new THREE.Vector2()
+    function onClick(event){
+      const rect = renderer.domElement.getBoundingClientRect()
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      raycaster.setFromCamera(mouse, camera)
+      const hit = raycaster.intersectObjects(markers)
+      if(hit.length){
+        const id = hit[0].object.userData.id
+        const mk = MARKERS.find(m => m.id === id)
+        if(mk) setSelected(mk)
+      }
+    }
     renderer.domElement.addEventListener('click', onClick)
 
-    function onResize(){ camera.aspect=el.clientWidth/el.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth, el.clientHeight) }
+    // Resize
+    function onResize(){
+      camera.aspect = el.clientWidth / el.clientHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(el.clientWidth, el.clientHeight)
+    }
     window.addEventListener('resize', onResize)
 
-    function animate(){ requestAnimationFrame(animate); renderer.render(scene, camera) } animate()
+    // Loop
+    let last = performance.now()
+    function loop(t){
+      const dt = (t - last)/1000; last = t
+      updateCamera(dt)
+      renderer.render(scene, camera)
+      requestAnimationFrame(loop)
+    }
+    loop(last)
 
-    return ()=>{ window.removeEventListener('resize', onResize); renderer.domElement.removeEventListener('click', onClick); el.removeChild(renderer.domElement) }
+    return ()=>{
+      window.removeEventListener('resize', onResize)
+      renderer.domElement.removeEventListener('click', onClick)
+      el.removeChild(renderer.domElement)
+    }
   }, [])
 
-  useEffect(()=>{
-    if(!showHlsTest) return
-    const video=videoRef.current; if(!video) return
+  // HLS test via proxy (autoplay muted per policy browser)
+  useEffect(() => {
+    if (!showHlsTest) return
+    const video = videoRef.current
+    if (!video) return
     const src = PROXY_BASE ? `${PROXY_BASE}/proxy?url=${encodeURIComponent(DEMO_HLS)}` : DEMO_HLS
-    if(Hls.isSupported()){ const hls=new Hls(); hls.loadSource(src); hls.attachMedia(video); hls.on(Hls.Events.MANIFEST_PARSED, ()=>{ video.muted=true; video.play() }); return ()=>hls.destroy() }
-    else if(video.canPlayType('application/vnd.apple.mpegurl')){ video.src=src; video.muted=true; video.play() }
-  }, [showHlsTest, PROXY_BASE])
+    const play = () => { video.muted = true; const p = video.play(); if (p && p.catch) p.catch(()=>{}) }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls()
+      hls.loadSource(src)
+      hls.attachMedia(video)
+      hls.on(Hls.Events.MANIFEST_PARSED, play)
+      return () => hls.destroy()
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src
+      play()
+    }
+  }, [showHlsTest])
 
   return (
     <div className="app-shell">
       <div className="toolbar">
         <div style={{background:'rgba(255,255,255,0.9)',padding:8,borderRadius:8,fontSize:14}}>
-          <div style={{fontWeight:700}}>Tokyo Live 3D — Hybrid (Fixed)</div>
-          <div style={{marginTop:6}}>Click un marker rosso per aprire una webcam (iframe).</div>
+          <div style={{fontWeight:700}}>Tokyo Live 3D — Modern</div>
+          <div style={{marginTop:6}}>Trascina con il mouse (tasto sinistro) per guardarti intorno. WASD per muoverti. Clic sui marker rossi per aprire la webcam.</div>
           <div style={{marginTop:6}}>
-            <button className="btn" onClick={()=>setShowHlsTest(s=>!s)}>{showHlsTest?'Chiudi HLS test':'Test HLS via Proxy'}</button>
+            <button className="btn" onClick={()=>setShowHlsTest(s=>!s)}>{showHlsTest ? 'Chiudi HLS test' : 'Test HLS via Proxy'}</button>
             {PROXY_BASE ? <span className="badge">Proxy attivo</span> : <span className="badge" style={{background:'#a55'}}>Proxy non configurato</span>}
           </div>
         </div>
       </div>
 
+      <div className="legend">
+        <div><b>Marker:</b> 1) Shibuya  2) Tokyo Tower  3) Asakusa  4) Shinjuku  5) Ginza  6) Skytree  7) Mt. Fuji</div>
+        <div style={{opacity:0.7}}>Autoplay attivo (muted) per compatibilità Chrome/Safari/Firefox.</div>
+      </div>
+
       <div ref={mountRef} style={{width:'100%',height:'100vh'}} />
 
-      {selectedCam && (
+      {selected && (
         <div className="overlay">
-          <div className="iframe-card">
-            <div className="iframe-header">
-              <strong>{selectedCam.name}</strong>
-              <button className="btn" onClick={()=>setSelectedCam(null)}>Close</button>
+          <div className="card">
+            <div className="card-h">
+              <strong>{selected.name}</strong>
+              <button className="btn" onClick={()=>setSelected(null)}>Chiudi</button>
             </div>
-            <div className="iframe-body">
-              <iframe title={selectedCam.id} src={selectedCam.embedUrl} style={{width:'100%',height:'100%',border:0}} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
+            <div className="card-b">
+              <iframe
+                title={selected.id}
+                src={selected.iframeUrl}
+                style={{width:'100%',height:'100%',border:0}}
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+              />
             </div>
           </div>
         </div>
@@ -91,13 +237,13 @@ export default function App () {
 
       {showHlsTest && (
         <div className="overlay" onClick={()=>setShowHlsTest(false)}>
-          <div className="iframe-card">
-            <div className="iframe-header">
+          <div className="card">
+            <div className="card-h">
               <strong>HLS di test {PROXY_BASE ? '(via proxy)' : '(diretto)'}</strong>
-              <button className="btn" onClick={()=>setShowHlsTest(false)}>Close</button>
+              <button className="btn" onClick={()=>setShowHlsTest(false)}>Chiudi</button>
             </div>
-            <div className="iframe-body" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <video ref={videoRef} style={{width:'100%',height:'100%'}} controls playsInline muted />
+            <div className="card-b" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <video ref={videoRef} style={{width:'100%',height:'100%'}} controls playsInline muted autoPlay />
             </div>
           </div>
         </div>
